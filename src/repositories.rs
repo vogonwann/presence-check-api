@@ -18,8 +18,9 @@ impl UserRepository {
     }
 
     pub fn create(connection: &mut SqliteConnection, new_user: NewUser) -> QueryResult<User>{
+        let active_user: NewUser = NewUser { name: new_user.name, last_name: new_user.last_name, is_active: 1 };
         let _ = diesel::insert_into(users::table)
-            .values(new_user)
+            .values(active_user)
             .execute(connection);
 
         let last_id = Self::last_inserted_id(connection)?;

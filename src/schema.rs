@@ -6,5 +6,6 @@ diesel::table! {
         name -> Text,
         last_name -> Text,
         created_at -> Timestamp,
+        is_active -> Nullable<SmallInt>,
     }
 }
