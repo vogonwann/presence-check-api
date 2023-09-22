@@ -1,8 +1,10 @@
+#[macro_use] extern crate rocket;
+
 mod repositories;
 mod models;
 mod schema;
 
-use rocket::{catch, catchers, delete, get, post, put, routes};
+use rocket::{catch, catchers, delete, get, post, put, routes, Rocket, Build};
 use rocket::http::Status;
 use rocket::response::status::Custom;
 use rocket::serde::json::Json;
@@ -87,13 +89,17 @@ fn unprocessable_entity() -> Value {
     json!({"status": "error", "reason": "Unprocessable entity."})
 }
 
-async fn run_db_migrations(rocket: rocket::Rocket<rocket::Build>) -> rocket::Rocket<rocket::Build> {
+async fn run_db_migrations(rocket: Rocket<Build>) -> Rocket<Build> {
     use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 
     const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
-    DbConn::get_one(&rocket).await.unwrap().run(|c| {
-        c.run_pending_migrations(MIGRATIONS).expect("Failed to run database migrations.");
-    }).await;
+
+    DbConn::get_one(&rocket)
+        .await
+        .expect("Unable to retrieve connection").run(|c| {
+            c.run_pending_migrations(MIGRATIONS).expect("Migrations failed");
+        })
+        .await;
 
     rocket
 }
@@ -114,8 +120,8 @@ async fn main() {
             unauthorized,
             unprocessable_entity
         ])
-        .attach(AdHoc::on_ignite("Database Migrations", run_db_migrations))
         .attach(DbConn::fairing())
+        .attach(AdHoc::on_ignite("Diesel migrations", run_db_migrations))
         .launch()
         .await;
 }
