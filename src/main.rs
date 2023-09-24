@@ -1,11 +1,10 @@
-#[macro_use] extern crate rocket;
-
 mod repositories;
 mod models;
 mod schema;
+mod cors;
 
 use rocket::{catch, catchers, delete, get, post, put, routes, Rocket, Build};
-use rocket::http::Status;
+use rocket::http::{Status, Method};
 use rocket::response::status::Custom;
 use rocket::serde::json::Json;
 use rocket_sync_db_pools::database;
@@ -15,6 +14,7 @@ use crate::repositories::UserRepository;
 use diesel::result::Error::NotFound;
 use rocket::fairing::AdHoc;
 use rocket::response::status;
+use rocket_cors::{AllowedOrigins, CorsOptions};
 
 
 #[database("sqlite")]
@@ -107,7 +107,20 @@ async fn run_db_migrations(rocket: Rocket<Build>) -> Rocket<Build> {
 
 #[rocket::main]
 async fn main() {
+    let cors = CorsOptions::default()
+        .allowed_origins(AllowedOrigins::all())
+        .allowed_methods(
+            vec![Method::Get, Method::Post, Method::Delete, Method::Put]
+                .into_iter()
+                .map(From::from)
+                .collect(),
+        )
+        .allow_credentials(true)
+        .to_cors()
+        .expect("error creating CORS fairing");
+
     let _ = rocket::build()
+        //.attach(cors)
         .mount("/", routes![
             get_users,
             get_user,
@@ -122,6 +135,7 @@ async fn main() {
         ])
         .attach(DbConn::fairing())
         .attach(AdHoc::on_ignite("Diesel migrations", run_db_migrations))
+        .attach(cors)
         .launch()
         .await;
 }
